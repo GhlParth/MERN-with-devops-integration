@@ -58,7 +58,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           cd client
-          npm ci --production=false
+          npm install
       
       - name: Build React app
         run: | 
