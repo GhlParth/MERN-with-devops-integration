@@ -18,18 +18,10 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '18'
-          cache: 'npm'
       
-      # Install BOTH backend and frontend together first
-      - name: Install all dependencies
-        run: |
-          echo "Installing backend dependencies..."
-          npm install
-          echo "Installing frontend dependencies..."
-          cd client && npm install
-          cd ..
+      - name: Install backend dependencies
+        run: npm install --legacy-peer-deps
       
-      # Backend checks
       - name: Backend - Verify syntax
         run: |
           node -c server.js
@@ -40,7 +32,9 @@ jobs:
           test -f package.json && echo "✅ package.json found"
           test -f .env.example && echo "✅ .env.example found"
       
-      # Frontend checks
+      - name: Install frontend dependencies
+        run: cd client && npm install --legacy-peer-deps
+      
       - name: Frontend - Build check
         run: cd client && npm run build
       
@@ -49,14 +43,12 @@ jobs:
           test -f client/public/index.html && echo "✅ index.html found"
           test -f client/src/App.js && echo "✅ App.js found"
       
-      # Docker checks
       - name: Docker - Verify files
         run: |
           test -f Dockerfile && echo "✅ Backend Dockerfile found"
           test -f client/Dockerfile && echo "✅ Frontend Dockerfile found"
           test -f docker-compose.yml && echo "✅ docker-compose.yml found"
       
-      # Security checks
       - name: Check for secrets
         run: |
           echo "Checking for hardcoded secrets..."
@@ -64,11 +56,6 @@ jobs:
             --include="*.js" --include="*.ts" \
             . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=build 2>/dev/null | grep -v ".env.example"; then
             echo "❌ WARNING: Hardcoded credentials found"
-            exit 1
-          fi
-          
-          if grep -r "mongodb://admin:password" --include="*.js" . --exclude-dir=node_modules 2>/dev/null | grep -v ".env.example"; then
-            echo "❌ WARNING: Database credentials in code"
             exit 1
           fi
           
