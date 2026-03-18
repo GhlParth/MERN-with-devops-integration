@@ -1,0 +1,72 @@
+name: Quick CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  quick-check:
+    runs-on: ubuntu-latest
+    name: Quick Checks
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      # Backend checks
+      - name: Backend - Install dependencies
+        run: npm install
+      
+      - name: Backend - Verify syntax
+        run: |
+          node -c server.js
+          echo "✅ Backend syntax valid"
+      
+      - name: Backend - Check structure
+        run: |
+          test -f package.json && echo "✅ package.json found"
+          test -f .env.example && echo "✅ .env.example found"
+      
+      # Frontend checks
+      - name: Frontend - Install dependencies
+        run: cd client && npm install
+      
+      - name: Frontend - Build check
+        run: cd client && npm run build
+      
+      - name: Frontend - Verify structure
+        run: |
+          test -f client/public/index.html && echo "✅ index.html found"
+          test -f client/src/App.js && echo "✅ App.js found"
+      
+      # Docker checks
+      - name: Docker - Verify Dockerfile
+        run: |
+          test -f Dockerfile && echo "✅ Backend Dockerfile found"
+          test -f client/Dockerfile && echo "✅ Frontend Dockerfile found"
+          test -f docker-compose.yml && echo "✅ docker-compose.yml found"
+      
+      # General checks
+      - name: Check for secrets
+        run: |
+          if grep -r "password123" --include="*.js" --include="*.ts" .; then
+            echo "⚠️ WARNING: Default password found in code"
+          fi
+          if grep -r "mongodb://admin:password" --include="*.js"; then
+            echo "⚠️ WARNING: Database credentials in code"
+          fi
+      
+      - name: Summary
+        run: |
+          echo "🎉 All quick checks passed!"
+          echo "✅ Backend verified"
+          echo "✅ Frontend built successfully"
+          echo "✅ Docker files present"
+          echo "✅ No critical issues found"

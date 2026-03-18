@@ -1,0 +1,83 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Production
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Log in to Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      # Deploy Backend
+      - name: Build and push Backend image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=TaskFlow Backend
+            org.opencontainers.image.revision=${{ github.sha }}
+      
+      # Deploy Frontend
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./client
+          dockerfile: ./client/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=TaskFlow Frontend
+            org.opencontainers.image.revision=${{ github.sha }}
+      
+      - name: Create deployment summary
+        run: |
+          cat > /tmp/deploy_summary.txt << EOF
+          🚀 Deployment Summary
+          
+          Backend Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}
+          Frontend Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ github.sha }}
+          
+          Commit: ${{ github.sha }}
+          Branch: ${{ github.ref }}
+          Author: ${{ github.actor }}
+          
+          Next steps:
+          1. Pull images from container registry
+          2. Update docker-compose.yml with new image tags
+          3. Run: docker-compose up -d
+          4. Verify: docker-compose ps
+          EOF
+          cat /tmp/deploy_summary.txt
+      
+      - name: Post deployment notification
+        run: |
+          echo "✅ Images pushed to registry"
+          echo "📦 Backend: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest"
+          echo "📦 Frontend: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest"
