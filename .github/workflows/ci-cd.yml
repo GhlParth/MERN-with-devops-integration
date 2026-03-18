@@ -61,7 +61,9 @@ jobs:
           npm ci 
       
       - name: Build React app
-        run: cd client && npm run build
+        run: | 
+          cd client --production=false
+          npm run build
       
       - name: Run tests
         run: cd client && npm test --passWithNoTests || true
