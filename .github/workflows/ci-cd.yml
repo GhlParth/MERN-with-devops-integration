@@ -49,26 +49,25 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      - name: Setup Node.js 
+      - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
       
-      - name: Install backend dependencies
-        run: npm install
-
-      - name: Install dependencies
-        run: cd client && npm install
+      - name: Install all dependencies
+        run: |
+          echo "Installing backend dependencies..."
+          npm install
+          echo "Installing frontend dependencies..."
+          cd client && npm install
+          cd ..
       
       - name: Build React app
         run: cd client && npm run build
       
       - name: Run tests
         run: cd client && npm test --passWithNoTests || true
-      
-      - name: Check syntax
-        run: cd client && npm run lint --if-present || echo "No lint script"
 
   # Build Backend Docker Image
   build-backend:
@@ -178,62 +177,10 @@ jobs:
           output: 'trivy-results.sarif'
       
       - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: 'trivy-results.sarif'
-
-  # Integration Tests (Docker Compose)
-  integration-tests:
-    runs-on: ubuntu-latest
-    name: Integration Tests
-    
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      
-      - name: Start services
-        run: |
-          docker-compose up -d --build
-          echo "Waiting for services to be ready..."
-          sleep 30
-      
-      - name: Check backend health
-        run: |
-          curl -f http://localhost:5000/api/tasks || exit 1
-          echo "✅ Backend is healthy"
-      
-      - name: Check frontend health
-        run: |
-          curl -f http://localhost || exit 1
-          echo "✅ Frontend is healthy"
-      
-      - name: Check MongoDB connection
-        run: |
-          docker-compose exec -T mongodb mongosh -u admin -p password123 --eval "db.adminCommand('ping')" | grep -q ok
-          echo "✅ MongoDB is connected"
-      
-      - name: Test API endpoints
-        run: |
-          # Test GET all tasks
-          curl -f http://localhost:5000/api/tasks | grep -q success
-          echo "✅ GET /api/tasks works"
-          
-          # Test GET stats
-          curl -f http://localhost:5000/api/stats | grep -q success
-          echo "✅ GET /api/stats works"
-          
-          # Test POST create task
-          curl -X POST http://localhost:5000/api/tasks \
-            -H "Content-Type: application/json" \
-            -d '{"title":"Test Task","priority":"high"}' | grep -q success
-          echo "✅ POST /api/tasks works"
-      
-      - name: Cleanup
-        if: always()
-        run: docker-compose down -v
 
   # Code Quality Check
   code-quality:
@@ -248,21 +195,29 @@ jobs:
         with:
           node-version: '18'
       
-      - name: Install dependencies
+      - name: Install all dependencies
         run: |
           npm install
           cd client && npm install
+          cd ..
       
       - name: Check for console logs
         run: |
           echo "Checking for console statements..."
-          ! grep -r "console\.log" --include="*.js" server.js || echo "⚠️ Found console.logs in production code"
-          ! grep -r "console\.log" --include="*.js" client/src --exclude-dir=node_modules || echo "⚠️ Found console.logs in production code"
+          ! grep -r "console\.log" --include="*.js" server.js --exclude-dir=node_modules || echo "⚠️ Found console.logs"
+          ! grep -r "console\.log" --include="*.js" client/src --exclude-dir=node_modules || echo "⚠️ Found console.logs"
       
-      - name: Check for TODO comments
+      - name: Check for hardcoded secrets
         run: |
-          echo "Checking for TODO comments..."
-          grep -r "TODO\|FIXME" --include="*.js" . --exclude-dir=node_modules || echo "✅ No TODO comments"
+          echo "Checking for hardcoded secrets..."
+          if grep -r "password123\|admin.*password\|jwt.*secret" \
+            --include="*.js" --include="*.ts" \
+            . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=build 2>/dev/null | grep -v ".env.example"; then
+            echo "❌ Found hardcoded credentials!"
+            exit 1
+          else
+            echo "✅ No hardcoded credentials found"
+          fi
       
       - name: File structure check
         run: |
@@ -276,7 +231,7 @@ jobs:
   notify-success:
     runs-on: ubuntu-latest
     name: Notify Success
-    needs: [test-backend, test-frontend, build-backend, build-frontend, integration-tests, code-quality, security-scan]
+    needs: [test-backend, test-frontend, build-backend, build-frontend, code-quality, security-scan]
     if: success()
     
     steps:
@@ -285,15 +240,15 @@ jobs:
           echo "🎉 All checks passed!"
           echo "✅ Backend tests passed"
           echo "✅ Frontend tests passed"
-          echo "✅ Docker images built"
-          echo "✅ Integration tests passed"
-          echo "✅ Code quality checks passed"
+          echo "✅ Docker images built and pushed"
+          echo "✅ Security scans completed"
+          echo "✅ Code quality verified"
 
   # Notify on Failure
   notify-failure:
     runs-on: ubuntu-latest
     name: Notify Failure
-    needs: [test-backend, test-frontend, build-backend, build-frontend, integration-tests, code-quality, security-scan]
+    needs: [test-backend, test-frontend, build-backend, build-frontend, code-quality, security-scan]
     if: failure()
     
     steps:

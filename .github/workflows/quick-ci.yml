@@ -20,10 +20,16 @@ jobs:
           node-version: '18'
           cache: 'npm'
       
-      # Backend checks
-      - name: Backend - Install dependencies
-        run: npm install
+      # Install BOTH backend and frontend together first
+      - name: Install all dependencies
+        run: |
+          echo "Installing backend dependencies..."
+          npm install
+          echo "Installing frontend dependencies..."
+          cd client && npm install
+          cd ..
       
+      # Backend checks
       - name: Backend - Verify syntax
         run: |
           node -c server.js
@@ -35,9 +41,6 @@ jobs:
           test -f .env.example && echo "✅ .env.example found"
       
       # Frontend checks
-      - name: Frontend - Install dependencies
-        run: cd client && npm install
-      
       - name: Frontend - Build check
         run: cd client && npm run build
       
@@ -47,24 +50,33 @@ jobs:
           test -f client/src/App.js && echo "✅ App.js found"
       
       # Docker checks
-      - name: Docker - Verify Dockerfile
+      - name: Docker - Verify files
         run: |
           test -f Dockerfile && echo "✅ Backend Dockerfile found"
           test -f client/Dockerfile && echo "✅ Frontend Dockerfile found"
           test -f docker-compose.yml && echo "✅ docker-compose.yml found"
       
-      # General checks
+      # Security checks
       - name: Check for secrets
         run: |
-          if grep -r "password123" --include="*.js" --include="*.ts" .; then
-            echo "⚠️ WARNING: Default password found in code"
+          echo "Checking for hardcoded secrets..."
+          if grep -r "password123\|admin.*password\|jwt.*secret" \
+            --include="*.js" --include="*.ts" \
+            . --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=build 2>/dev/null | grep -v ".env.example"; then
+            echo "❌ WARNING: Hardcoded credentials found"
+            exit 1
           fi
-          if grep -r "mongodb://admin:password" --include="*.js"; then
-            echo "⚠️ WARNING: Database credentials in code"
+          
+          if grep -r "mongodb://admin:password" --include="*.js" . --exclude-dir=node_modules 2>/dev/null | grep -v ".env.example"; then
+            echo "❌ WARNING: Database credentials in code"
+            exit 1
           fi
+          
+          echo "✅ No hardcoded credentials found"
       
       - name: Summary
         run: |
+          echo ""
           echo "🎉 All quick checks passed!"
           echo "✅ Backend verified"
           echo "✅ Frontend built successfully"
