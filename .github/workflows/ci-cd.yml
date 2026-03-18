@@ -49,12 +49,15 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      - name: Setup Node.js
+      - name: Setup Node.js 
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
       
+      - name: Install backend dependencies
+        run: npm install
+
       - name: Install dependencies
         run: cd client && npm install
       
@@ -88,7 +91,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.TOKEN_GITHUB }}
       
       - name: Extract metadata
         id: meta
@@ -133,7 +136,7 @@ jobs:
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.TOKEN_GITHUB }}
       
       - name: Extract metadata
         id: meta
@@ -273,7 +276,7 @@ jobs:
   notify-success:
     runs-on: ubuntu-latest
     name: Notify Success
-    needs: [test-backend, test-frontend, build-backend, build-frontend, integration-tests]
+    needs: [test-backend, test-frontend, build-backend, build-frontend, integration-tests, code-quality, security-scan]
     if: success()
     
     steps:
@@ -290,7 +293,7 @@ jobs:
   notify-failure:
     runs-on: ubuntu-latest
     name: Notify Failure
-    needs: [test-backend, test-frontend, build-backend, build-frontend, integration-tests]
+    needs: [test-backend, test-frontend, build-backend, build-frontend, integration-tests, code-quality, security-scan]
     if: failure()
     
     steps:
