@@ -20,7 +20,7 @@ jobs:
           node-version: '18'
       
       - name: Install backend dependencies
-        run: npm install --legacy-peer-deps
+        run: npm install 
       
       - name: Backend - Verify syntax
         run: |
@@ -33,7 +33,7 @@ jobs:
           test -f .env.example && echo "✅ .env.example found"
       
       - name: Install frontend dependencies
-        run: cd client && npm install --legacy-peer-deps
+        run: cd client && npm install
       
       - name: Frontend - Build check
         run: cd client && npm run build
