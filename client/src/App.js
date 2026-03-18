@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import Header from './components/Header';
 import TaskForm from './components/TaskForm';
@@ -27,35 +27,8 @@ function App() {
     loadStats();
   }, []);
 
-  // Apply filters whenever tasks or filters change
-  useEffect(() => {
-    applyFilters();
-  }, [tasks, filters, applyFilters]);
-
-  const loadTasks = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await taskAPI.getAllTasks();
-      setTasks(response.data.data || []);
-    } catch (err) {
-      setError('Failed to load tasks');
-      console.error('Error loading tasks:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadStats = async () => {
-    try {
-      const response = await taskAPI.getStats();
-      setStats(response.data.data);
-    } catch (err) {
-      console.error('Error loading stats:', err);
-    }
-  };
-
-  const applyFilters = () => {
+  // Define applyFilters with useCallback to memoize it
+  const applyFilters = useCallback(() => {
     let result = [...tasks];
 
     // Filter by status
@@ -80,6 +53,34 @@ function App() {
     }
 
     setFilteredTasks(result);
+  }, [tasks, filters]);
+
+  // Apply filters whenever tasks or filters change
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
+
+  const loadTasks = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await taskAPI.getAllTasks();
+      setTasks(response.data.data || []);
+    } catch (err) {
+      setError('Failed to load tasks');
+      console.error('Error loading tasks:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      const response = await taskAPI.getStats();
+      setStats(response.data.data);
+    } catch (err) {
+      console.error('Error loading stats:', err);
+    }
   };
 
   const handleAddTask = async (taskData) => {
