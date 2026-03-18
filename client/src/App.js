@@ -30,7 +30,7 @@ function App() {
   // Apply filters whenever tasks or filters change
   useEffect(() => {
     applyFilters();
-  }, [tasks, filters]);
+  }, [tasks, filters, applyFilters]);
 
   const loadTasks = async () => {
     try {
