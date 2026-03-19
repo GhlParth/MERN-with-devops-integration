@@ -1,4 +1,4 @@
-# Build stage
+# Build stage - React
 FROM node:18-alpine AS builder
 
 WORKDIR /app
@@ -7,22 +7,32 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm ci
 
-# Copy source code
+# Copy source
 COPY . .
 
 # Build React app
 RUN npm run build
 
-# Production stage - Use nginx to serve static files
+# Production stage - Nginx
 FROM nginx:alpine
 
-# Copy nginx config
+# Create non-root user
+RUN addgroup -g 1001 -S nginx && \
+    adduser -S nginx -u 1001
+
+# Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built app from builder
 COPY --from=builder /app/build /usr/share/nginx/html
+
+# Change ownership
+RUN chown -R nginx:nginx /usr/share/nginx/html
+
+# Switch to non-root user
+USER nginx
 
 # Expose port
 EXPOSE 80
