@@ -55,7 +55,7 @@ jobs:
 
             curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.yml -o docker-compose.yml
 
-            echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ghlparth --password-stdin
+            echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u GhlParth --password-stdin
 
             docker pull ghcr.io/ghlparth/taskflow-backend:latest
             docker pull ghcr.io/ghlparth/taskflow-frontend:latest
