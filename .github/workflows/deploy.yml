@@ -1,45 +1,91 @@
-name: Deploy to EC2 on merge to main
+# name: Deploy to EC2 on merge to main
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+
+#     permissions:
+#       contents: read
+#       packages: write
+
+#     steps:
+
+#       - name: Checkout code
+#         uses: actions/checkout@v3
+
+#       - name: Log in to GitHub Container Registry
+#         uses: docker/login-action@v3
+#         with:
+#           registry: ghcr.io
+#           username: ${{ github.actor }}
+#           password: ${{ secrets.TOKEN_GITHUB }}
+
+#       - name: Build and push backend image
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: .
+#           file: Dockerfile
+#           push: true
+#           tags: ghcr.io/ghlparth/taskflow-backend:latest
+
+#       # No build-args needed — nginx.conf proxies /api to backend internally
+#       - name: Build and push frontend image
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: ./client
+#           push: true
+#           tags: ghcr.io/ghlparth/taskflow-frontend:latest
+
+#       - name: Deploy to EC2
+#         uses: appleboy/ssh-action@v1.0.0
+#         with:
+#           host: ${{ secrets.EC2_HOST }}
+#           username: ${{ secrets.EC2_USER }}
+#           key: ${{ secrets.EC2_KEY }}
+#           script: |
+#             mkdir -p /home/ubuntu/taskflow
+#             cd /home/ubuntu/taskflow
+
+#             echo "${{ secrets.ENV_FILE }}" > .env
+
+#             curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.yml -o docker-compose.yml
+
+#             echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u GhlParth --password-stdin
+
+#             docker pull ghcr.io/ghlparth/taskflow-backend:latest
+#             docker pull ghcr.io/ghlparth/taskflow-frontend:latest
+
+#             docker compose down
+#             docker compose up -d
+
+#             docker image prune -f
+
+#             echo "Deployment complete!"
+
+
+name: Deploy to EC2
 
 on:
-  push:
-    branches:
-      - main
+  # Automatically runs after build.yml completes successfully
+  workflow_run:
+    workflows: ["Build and Push Images to GHCR"]
+    types:
+      - completed
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-      packages: write
+    # Only deploy if the build workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
 
     steps:
-
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.TOKEN_GITHUB }}
-
-      - name: Build and push backend image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          tags: ghcr.io/ghlparth/taskflow-backend:latest
-
-      # No build-args needed — nginx.conf proxies /api to backend internally
-      - name: Build and push frontend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./client
-          push: true
-          tags: ghcr.io/ghlparth/taskflow-frontend:latest
 
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.0
@@ -51,15 +97,20 @@ jobs:
             mkdir -p /home/ubuntu/taskflow
             cd /home/ubuntu/taskflow
 
+            # Write .env from GitHub Secrets
             echo "${{ secrets.ENV_FILE }}" > .env
 
-            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.yml -o docker-compose.yml
+            # Pull latest docker-compose.yml from main branch
+            curl -fsSL https://raw.githubusercontent.com/GhlParth/mern-with-devops-integration/main/docker-compose.yml -o docker-compose.yml
 
+            # Log in to GHCR
             echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u GhlParth --password-stdin
 
+            # Pull latest images
             docker pull ghcr.io/ghlparth/taskflow-backend:latest
             docker pull ghcr.io/ghlparth/taskflow-frontend:latest
 
+            # Restart containers
             docker compose down
             docker compose up -d
 
