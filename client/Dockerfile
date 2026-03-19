@@ -18,9 +18,6 @@ RUN npm run build
 # Production stage - Nginx
 FROM nginx:alpine
 
-# Create non-root user
-RUN addgroup -g 1001 -S nginx && \
-    adduser -S nginx -u 1001
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
