@@ -1,90 +1,68 @@
-name: Deploy to Production
+name: Deploy to EC2 on merge to main
 
 on:
   push:
-    branches: [ main ]
-    tags: [ 'v*' ]
-  workflow_dispatch:
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ghlparth/mern-with-devops-integration
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    name: Deploy to Production
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+
     permissions:
       contents: read
       packages: write
-    
+
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Log in to Container Registry
-        uses: docker/login-action@v2
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.TOKEN_GITHUB }}
-      
-      # Deploy Backend
-      - name: Build and push Backend image
-        uses: docker/build-push-action@v4
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
         with:
           context: .
+          file: Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}
-          labels: |
-            org.opencontainers.image.title=TaskFlow Backend
-            org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      
-      # Deploy Frontend
-      - name: Build and push Frontend image
-        uses: docker/build-push-action@v4
+          tags: ghcr.io/ghlparth/taskflow-backend:latest
+
+      # No build-args needed — nginx.conf proxies /api to backend internally
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
         with:
           context: ./client
-          file: ./client/Dockerfile
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ github.sha }}
-          labels: |
-            org.opencontainers.image.title=TaskFlow Frontend
-            org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-      
-      - name: Create deployment summary
-        run: |
-          cat > /tmp/deploy_summary.txt << EOF
-          🚀 Deployment Summary
-          
-          Backend Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}
-          Frontend Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ github.sha }}
-          
-          Commit: ${{ github.sha }}
-          Branch: ${{ github.ref }}
-          Author: ${{ github.actor }}
-          
-          Next steps:
-          1. Pull images from container registry
-          2. Update docker-compose.yml with new image tags
-          3. Run: docker-compose up -d
-          4. Verify: docker-compose ps
-          EOF
-          cat /tmp/deploy_summary.txt
-      
-      - name: Post deployment notification
-        run: |
-          echo "✅ Images pushed to registry"
-          echo "📦 Backend: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest"
-          echo "📦 Frontend: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:latest"
+          tags: ghcr.io/ghlparth/taskflow-frontend:latest
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          script: |
+            mkdir -p /home/ubuntu/taskflow
+            cd /home/ubuntu/taskflow
+
+            echo "${{ secrets.ENV_FILE }}" > .env
+
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/docker-compose.yml -o docker-compose.yml
+
+            echo "${{ secrets.TOKEN_GITHUB }}" | docker login ghcr.io -u ghlparth --password-stdin
+
+            docker pull ghcr.io/ghlparth/taskflow-backend:latest
+            docker pull ghcr.io/ghlparth/taskflow-frontend:latest
+
+            docker compose down
+            docker compose up -d
+
+            docker image prune -f
+
+            echo "Deployment complete!"
