@@ -28,7 +28,6 @@
   "jest": {
     "testEnvironment": "node",
     "testMatch": ["**/tests/**/*.test.js"],
-    "setupFilesAfterFramework": ["<rootDir>/src/setupTests.js"],
     "coverageThreshold": {
       "global": {
         "lines": 70
