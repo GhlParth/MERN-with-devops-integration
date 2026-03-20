@@ -32,9 +32,9 @@ describe('Stats', () => {
   });
 
   it('returns null when stats is not provided', () => {
-    const { container } = render(<Stats stats={null} />);
-    expect(container.firstChild).toBeNull();
-  });
+  const { container } = render(<Stats stats={null} />);
+  expect(container).toBeEmptyDOMElement();
+});
 
   it('handles zero tasks correctly', () => {
     render(<Stats stats={{ ...mockStats, totalTasks: 0, completionRate: '0' }} />);
